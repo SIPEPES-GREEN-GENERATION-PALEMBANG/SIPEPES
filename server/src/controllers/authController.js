@@ -56,11 +56,11 @@ const login = async (req, res, next) => {
     }
 
     // 3. Fallback dev mock jika database belum ter-seed
-    if (!user && cleanEmail === 'admin@sipepes.com') {
+    if (!user && (cleanEmail === 'admin@sipepes.com' || cleanEmail === 'admin@sipepes.or.id')) {
       const mockHash = await bcrypt.hash('admin123', 10);
       user = {
         id: 'admin-default-01',
-        email: 'admin@sipepes.com',
+        email: cleanEmail,
         password_hash: mockHash,
         full_name: 'Admin GG River Care',
         role: 'admin',

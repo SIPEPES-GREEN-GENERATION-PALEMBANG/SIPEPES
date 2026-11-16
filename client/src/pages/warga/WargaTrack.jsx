@@ -19,6 +19,7 @@ import Card from '../../components/Card';
 import Button from '../../components/Button';
 import Badge from '../../components/Badge';
 import Toast from '../../components/Toast';
+import reportsService from '../../services/reports';
 
 export default function WargaTrack() {
   const { reports } = useAdmin();
@@ -27,6 +28,8 @@ export default function WargaTrack() {
 
   const [inputCode, setInputCode] = useState(paramKode || '');
   const [activeCode, setActiveCode] = useState(paramKode || '');
+  const [apiReport, setApiReport] = useState(null);
+  const [isSearchingApi, setIsSearchingApi] = useState(false);
   const [copied, setCopied] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
 
@@ -38,14 +41,42 @@ export default function WargaTrack() {
     }
   }, [paramKode]);
 
-  // Pencarian Laporan yang Tepat (Tanpa Fallback ke Laporan Lain)
+  // Ambil laporan live dari Backend API jika ada activeCode
+  useEffect(() => {
+    if (!activeCode.trim()) {
+      setApiReport(null);
+      return;
+    }
+
+    let isMounted = true;
+    const fetchFromApi = async () => {
+      setIsSearchingApi(true);
+      try {
+        const res = await reportsService.trackReport(activeCode.trim());
+        if (isMounted && res.success && res.data) {
+          setApiReport(res.data);
+        }
+      } catch (err) {
+        // Fallback ke cache context
+      } finally {
+        if (isMounted) setIsSearchingApi(false);
+      }
+    };
+
+    fetchFromApi();
+    return () => { isMounted = false; };
+  }, [activeCode]);
+
+  // Pencarian Laporan yang Tepat (API Live didahulukan, lalu fallback ke lokal)
   const normalizedSearch = activeCode.trim().toUpperCase();
-  const foundReport = normalizedSearch
+  const localReport = normalizedSearch
     ? (reports || []).find(
         r => (r.tracking_code && r.tracking_code.toUpperCase() === normalizedSearch) ||
              (r.id && r.id.toUpperCase() === normalizedSearch)
       )
     : null;
+
+  const foundReport = apiReport || localReport;
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();

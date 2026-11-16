@@ -20,6 +20,7 @@ import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { useAdmin } from '../../context/AdminContext';
 import { compressImage } from '../../lib/compressImage';
+import reportsService from '../../services/reports';
 import Stepper from '../../components/Stepper';
 import Button from '../../components/Button';
 import Card from '../../components/Card';
@@ -263,36 +264,56 @@ export default function WargaReportForm() {
   };
 
   // Submit Laporan
-  const handleSubmitReport = (e) => {
+  const handleSubmitReport = async (e) => {
     e.preventDefault();
     if (!validateStep(1) || !validateStep(2) || !validateStep(3)) return;
 
     setIsSubmitting(true);
+    setErrors(prev => ({ ...prev, submit: null }));
 
     // Format Cerdas: Gabungkan kondisi lokasi ke deskripsi sesuai Gap 2
     const conditionHeader = `[Kondisi Lokasi: Luas ${areaEstimate} | Dekat Permukiman: ${nearSettlement} | Kedalaman Air: ${waterDepth}]`;
     const fullDescription = `${conditionHeader}\n\n${description}`;
 
-    setTimeout(() => {
-      const created = addReport({
-        title,
-        description: fullDescription,
-        category: pollutionOptions.find(p => p.value === pollutionType)?.label || 'Limbah Minyak / B3',
-        pollution_type: pollutionType,
-        estimated_severity: severity,
-        latitude: coords.lat,
-        longitude: coords.lng,
-        district,
-        address_landmark: landmark || `Sempadan Sungai Musi, ${district}`,
-        photo_url: photoPreview,
-        // Warga melapor tanpa akun (FR-2)
-        is_anonymous: true,
-        reporter_name: 'Warga Peduli Musi'
-      });
+    const reportPayload = {
+      title,
+      description: fullDescription,
+      category: pollutionOptions.find(p => p.value === pollutionType)?.label || 'Sampah Plastik / Domestik',
+      pollution_type: pollutionType,
+      estimated_severity: severity,
+      latitude: coords.lat,
+      longitude: coords.lng,
+      district,
+      address_landmark: landmark || `Sempadan Sungai Musi, ${district}`,
+      photo_url: photoPreview,
+      // Warga melapor tanpa akun (FR-2)
+      is_anonymous: true,
+      reporter_name: 'Warga Peduli Musi'
+    };
 
-      setIsSubmitting(false);
-      setCreatedTicket(created);
-    }, 800);
+    let created = null;
+
+    // Coba kirim via API Backend jika live
+    if (import.meta.env.VITE_USE_MOCK !== 'true') {
+      try {
+        const res = await reportsService.createReport(reportPayload, photoFile);
+        if (res.success && res.data) {
+          created = res.data;
+        }
+      } catch (apiErr) {
+        console.warn('Pengiriman via API backend gagal, beralih ke cache context:', apiErr.message);
+      }
+    }
+
+    // Fallback simpan ke context jika offline / belum ada backend
+    if (!created) {
+      created = addReport(reportPayload);
+    } else {
+      addReport(created);
+    }
+
+    setIsSubmitting(false);
+    setCreatedTicket(created);
   };
 
   const handleCopyCode = () => {

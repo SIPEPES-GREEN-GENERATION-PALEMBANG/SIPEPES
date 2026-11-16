@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import {
   initialReports,
   mockAdminUser,
@@ -9,8 +9,14 @@ import {
   wasteComposition,
   criticalPoints
 } from '../data/mockReports';
+import reportsService from '../services/reports';
+import authService from '../services/auth';
+import mockAdapter from '../services/mockAdapter';
+import { supabase } from '../lib/supabaseClient';
 
 const AdminContext = createContext();
+
+const isMock = import.meta.env.VITE_USE_MOCK === 'true';
 
 export function AdminProvider({ children }) {
   const [reports, setReports] = useState(() => {
@@ -18,7 +24,6 @@ export function AdminProvider({ children }) {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Otomatis bersihkan referensi lama 'Mobile App' menjadi 'Via Portal Pelaporan Warga'
         return parsed.map((r) => ({
           ...r,
           reporter_source: r.reporter_source?.toLowerCase().includes('mobile')
@@ -33,8 +38,9 @@ export function AdminProvider({ children }) {
   });
 
   const [adminUser, setAdminUser] = useState(() => {
+    const token = localStorage.getItem('sipepes_admin_token');
     const raw = localStorage.getItem('sipepes_admin_user');
-    if (raw) {
+    if (token && raw) {
       try {
         const parsed = JSON.parse(raw);
         if (parsed) return parsed;
@@ -42,8 +48,7 @@ export function AdminProvider({ children }) {
         // ignore
       }
     }
-    // Default sesi aktif agar admin dapat langsung dibuka saat testing & preview lokal
-    return mockAdminUser;
+    return null;
   });
 
   // Selected report for Master-Detail verification view
@@ -55,77 +60,153 @@ export function AdminProvider({ children }) {
   const [statusFilter, setStatusFilter] = useState('all');
   const [severityFilter, setSeverityFilter] = useState('all');
   const [districtFilter, setDistrictFilter] = useState('all');
+  const [isLoadingReports, setIsLoadingReports] = useState(false);
 
+  // Simpan cache lokal
   useEffect(() => {
-    localStorage.setItem('sipepes_admin_reports_v2', JSON.stringify(reports));
+    if (reports && reports.length > 0) {
+      localStorage.setItem('sipepes_admin_reports_v2', JSON.stringify(reports));
+    }
   }, [reports]);
 
-  const login = async (email, password, accountName) => {
-    // 1. Coba otentikasi ke Backend API live Supabase jika tersedia
+  // Muat data laporan dari API Live
+  const refreshReports = useCallback(async (isSilent = false) => {
+    if (isMock) return;
+    if (!isSilent) setIsLoadingReports(true);
+
     try {
-      const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1';
-      const response = await fetch(`${apiBase}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-      const data = await response.json();
-      if (response.ok && data.success && data.data?.token) {
-        localStorage.setItem('sipepes_admin_token', data.data.token);
-        localStorage.setItem('sipepes_admin_user', JSON.stringify(data.data.user));
-        setAdminUser({
-          ...mockAdminUser,
-          id: data.data.user.id,
-          username: data.data.user.email,
-          full_name: data.data.user.name || mockAdminUser.full_name,
-          role: data.data.user.role,
-          email: data.data.user.email,
-          unit_kerja: accountName || mockAdminUser.unit_kerja
-        });
-        return { success: true };
+      const token = localStorage.getItem('sipepes_admin_token');
+      if (token) {
+        // Mode Admin: Ambil seluruh antrean laporan
+        const res = await reportsService.getAdminReports({ limit: 100 });
+        if (res?.success && res.data?.reports) {
+          setReports(res.data.reports);
+          return;
+        }
       }
-    } catch (apiErr) {
-      console.warn('API backend login fallback ke mode offline/mock:', apiErr.message);
+
+      // Mode Publik: Ambil laporan publik tervalidasi
+      const pubRes = await reportsService.getPublicReports();
+      if (pubRes?.success && Array.isArray(pubRes.data)) {
+        setReports(prev => {
+          const apiIds = new Set(pubRes.data.map(r => String(r.id)));
+          // Pertahankan laporan lokal yang belum ada di API
+          const localOnly = prev.filter(r => !apiIds.has(String(r.id)));
+          return [...pubRes.data, ...localOnly];
+        });
+      }
+    } catch (err) {
+      console.warn('Sinkronisasi API gagal, tetap menggunakan state lokal:', err.message);
+    } finally {
+      if (!isSilent) setIsLoadingReports(false);
+    }
+  }, []);
+
+  // Inisialisasi awal saat AdminProvider terpasang atau status auth berganti
+  useEffect(() => {
+    refreshReports(false);
+  }, [refreshReports, adminUser?.id]);
+
+  // Listener Realtime Supabase + Polling Fallback 20 Detik
+  useEffect(() => {
+    let channel = null;
+
+    if (supabase && !isMock) {
+      try {
+        channel = supabase
+          .channel('admin_context_reports')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'reports' },
+            () => {
+              refreshReports(true);
+            }
+          )
+          .subscribe();
+      } catch (err) {
+        console.warn('Supabase Realtime channel error:', err);
+      }
     }
 
-    // 2. Fallback validasi lokal untuk demo & testing offline
-    if (
-      (email === 'admin@sipepes.com' && password === 'admin123') ||
-      (email === 'admin@sipepes.or.id' && password === 'admin123') ||
-      (email && password)
-    ) {
-      localStorage.setItem('sipepes_admin_token', 'mock_jwt_token_admin_musilaban_2026');
-      setAdminUser({
-        ...mockAdminUser,
-        username: email || mockAdminUser.username,
-        email: email.includes('@') ? email : mockAdminUser.email,
-        unit_kerja: accountName || mockAdminUser.unit_kerja
-      });
-      return { success: true };
+    const interval = setInterval(() => {
+      refreshReports(true);
+    }, 20000);
+
+    return () => {
+      clearInterval(interval);
+      if (channel && supabase) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [refreshReports]);
+
+  const login = async (email, password, accountName) => {
+    // 1. Coba otentikasi via API Live jika tidak dalam mode mock
+    if (!isMock) {
+      try {
+        const res = await authService.login(email, password);
+        if (res.success && res.data?.user) {
+          const u = res.data.user;
+          const userObj = {
+            id: u.id,
+            username: u.email,
+            full_name: u.full_name || u.name || 'Admin GG River Care',
+            role: u.role || 'admin',
+            email: u.email,
+            unit_kerja: accountName || 'Tim Relawan GG River Care'
+          };
+          localStorage.setItem('sipepes_admin_user', JSON.stringify(userObj));
+          setAdminUser(userObj);
+          refreshReports(false);
+          return { success: true };
+        }
+      } catch (apiErr) {
+        console.warn('API backend login gagal, mengecek fallback offline:', apiErr.message);
+      }
     }
-    return { success: false, message: 'Kombinasi Email dan password tidak valid' };
+
+    // 2. Fallback validasi offline/mock
+    try {
+      const mockRes = await mockAdapter.login(email, password);
+      if (mockRes.success) {
+        const userObj = {
+          ...mockAdminUser,
+          username: email,
+          email: email,
+          unit_kerja: accountName || mockAdminUser.unit_kerja
+        };
+        localStorage.setItem('sipepes_admin_user', JSON.stringify(userObj));
+        setAdminUser(userObj);
+        return { success: true };
+      }
+    } catch (err) {
+      return { success: false, message: err.message || 'Kombinasi Email dan password tidak valid.' };
+    }
+
+    return { success: false, message: 'Kombinasi Email dan password tidak valid.' };
   };
 
   const logout = () => {
-    localStorage.removeItem('sipepes_admin_token');
+    authService.logout();
     setAdminUser(null);
   };
 
   const addReport = (newReportData) => {
     const trackingCode = `SPP-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(Math.floor(1000 + Math.random() * 9000))}`;
     const newReport = {
-      id: `rep-${Date.now()}`,
-      tracking_code: trackingCode,
+      id: newReportData.id || `rep-${Date.now()}`,
+      tracking_code: newReportData.tracking_code || trackingCode,
       title: newReportData.title || 'Laporan Baru Warga',
       description: newReportData.description || '',
-      category: newReportData.category || 'Minyak & B3',
+      category: newReportData.category || 'Sampah Plastik / Domestik',
+      pollution_type: newReportData.pollution_type || 'sampah_domestik',
       estimated_severity: newReportData.estimated_severity || 'sedang',
       latitude: newReportData.latitude || -2.9904,
       longitude: newReportData.longitude || 104.7565,
       address_landmark: newReportData.address_landmark || 'Dermaga 7 Ulu, Seberang Ulu I',
       district: newReportData.district || 'Seberang Ulu I',
-      status: 'menunggu',
-      created_at: new Date().toISOString(),
+      status: newReportData.status || 'menunggu',
+      created_at: newReportData.created_at || new Date().toISOString(),
       reporter_name: newReportData.is_anonymous ? 'Anonim (Warga Palembang)' : (newReportData.reporter_name || 'Warga Palembang'),
       reporter_contact: newReportData.is_anonymous ? 'Disembunyikan' : (newReportData.reporter_contact || '+62 812-xxxx-xxxx'),
       reporter_source: 'Via Portal Pelaporan Warga',
@@ -136,23 +217,38 @@ export function AdminProvider({ children }) {
     return newReport;
   };
 
-  const verifyReport = (id, newStatus, severity, notes, rejectionReason = '') => {
+  const verifyReport = async (id, newStatus, severity, notes, rejectionReason = '') => {
+    // 1. Optimistic Update Local State
     setReports(prevReports =>
       prevReports.map(rep => {
-        if (rep.id === id) {
+        if (String(rep.id) === String(id)) {
           return {
             ...rep,
             status: newStatus,
+            official_severity: severity || rep.estimated_severity,
             estimated_severity: severity || rep.estimated_severity,
             rejection_reason: newStatus === 'ditolak' ? rejectionReason : null,
             admin_notes: notes || rep.admin_notes,
-            verified_by: adminUser?.full_name || 'Zira Pertiwi',
+            verified_by: adminUser?.full_name || 'Admin GG River Care',
             verified_at: new Date().toISOString()
           };
         }
         return rep;
       })
     );
+
+    // 2. Kirim ke API Live Backend jika aktif
+    if (!isMock) {
+      try {
+        await reportsService.verifyReport(id, {
+          status: newStatus,
+          official_severity: severity,
+          notes: notes || rejectionReason || 'Verifikasi oleh Admin GG River Care',
+        });
+      } catch (apiErr) {
+        console.warn('Gagal sinkronisasi verifikasi ke API backend:', apiErr.message);
+      }
+    }
   };
 
   // Metrik Laporan Dinamis
@@ -179,7 +275,7 @@ export function AdminProvider({ children }) {
     ditolak: ditolakCount
   };
 
-  const selectedReport = reports.find(r => r.id === selectedReportId) || reports[0];
+  const selectedReport = reports.find(r => String(r.id) === String(selectedReportId)) || reports[0];
 
   return (
     <AdminContext.Provider
@@ -188,6 +284,8 @@ export function AdminProvider({ children }) {
         login,
         logout,
         reports,
+        refreshReports,
+        isLoadingReports,
         stats,
         selectedReportId,
         setSelectedReportId,

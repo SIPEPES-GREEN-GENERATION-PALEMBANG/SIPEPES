@@ -10,7 +10,7 @@ export default function AdminLogin() {
   const { login, adminUser } = useAdmin();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('admin@sipepes.or.id');
+  const [email, setEmail] = useState('admin@sipepes.com');
   const [password, setPassword] = useState('admin123');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);

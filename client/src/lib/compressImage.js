@@ -12,9 +12,14 @@ export async function compressImage(file, maxDimension = 1600, maxSizeBytes = 2 
     throw new Error('Format file tidak didukung. Mohon gunakan foto berekstensi JPG, PNG, atau WebP.');
   }
 
-  // Jika ukuran file asli sudah di bawah 1MB dan formatnya sudah webp/jpeg, langsung gunakan
+  // Jika ukuran file asli sudah di bawah 800KB dan formatnya sudah webp, langsung gunakan
   if (file.size <= 800 * 1024 && file.type === 'image/webp') {
-    return file;
+    return {
+      file,
+      previewUrl: URL.createObjectURL(file),
+      originalSize: file.size,
+      compressedSize: file.size
+    };
   }
 
   return new Promise((resolve, reject) => {

@@ -19,6 +19,7 @@ import Card from '../../components/Card';
 import Button from '../../components/Button';
 import Badge from '../../components/Badge';
 import Toast from '../../components/Toast';
+import reportsService from '../../services/reports';
 
 export default function AdminExport() {
   const { reports, advocacyArchives } = useAdmin();
@@ -160,34 +161,35 @@ export default function AdminExport() {
     setIsDownloading(true);
 
     try {
-      const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1';
-      const token = localStorage.getItem('sipepes_admin_token');
-
-      const response = await fetch(`${apiBase}/export/pdf`, {
-        method: 'GET',
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : ''
-        }
+      await reportsService.exportReports('pdf', {
+        district: selectedDistrict !== 'all' && selectedDistrict !== 'Semua Kecamatan' ? selectedDistrict : undefined,
+        severity: selectedSeverity !== 'all' ? selectedSeverity : undefined,
+        status: 'valid'
       });
-
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `SIPEPES_Laporan_Advokasi_Musi_${new Date().toISOString().slice(0, 10)}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setToastMessage('Berkas PDF Eksekutif berhasil diunduh dari server.');
-      } else {
-        // Fallback jendela cetak laporan eksekutif
-        window.print();
-        setToastMessage('Membuka dialog cetak laporan eksekutif PDF.');
-      }
+      setToastMessage('Berkas PDF Eksekutif berhasil diunduh dari server.');
     } catch (err) {
+      console.warn('Gagal unduh PDF API, membuka dialog cetak:', err.message);
       window.print();
       setToastMessage('Membuka dialog cetak laporan eksekutif PDF.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  // Unduh Berkas Excel Nyata (Memanggil API Server atau CSV Fallback)
+  const handleExportExcel = async () => {
+    setIsDownloading(true);
+
+    try {
+      await reportsService.exportReports('excel', {
+        district: selectedDistrict !== 'all' && selectedDistrict !== 'Semua Kecamatan' ? selectedDistrict : undefined,
+        severity: selectedSeverity !== 'all' ? selectedSeverity : undefined,
+        status: 'valid'
+      });
+      setToastMessage('Berkas Excel resmi berhasil diunduh dari server.');
+    } catch (err) {
+      console.warn('Gagal unduh Excel API, beralih ke pembuatan CSV lokal:', err.message);
+      handleExportCSV();
     } finally {
       setIsDownloading(false);
     }
@@ -234,11 +236,22 @@ export default function AdminExport() {
               type="button"
               variant="garis"
               size="md"
-              onClick={handleExportCSV}
+              onClick={handleExportExcel}
               disabled={isDownloading}
             >
               <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-              <span>Unduh Data CSV</span>
+              <span>Unduh Excel (.xlsx)</span>
+            </Button>
+
+            <Button
+              type="button"
+              variant="garis"
+              size="md"
+              onClick={handleExportCSV}
+              disabled={isDownloading}
+            >
+              <FileSpreadsheet className="w-4 h-4 text-ink-muted" />
+              <span>Unduh CSV</span>
             </Button>
           </div>
         </div>
