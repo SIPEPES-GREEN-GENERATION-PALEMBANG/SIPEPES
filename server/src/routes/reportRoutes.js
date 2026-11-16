@@ -15,7 +15,10 @@ router.post(
 // 2. Ambil Titik Peta & Daftar Laporan Tervalidasi (Publik Warga)
 router.get('/', reportController.getPublicReports);
 
-// 3. Lacak Status Laporan via Tracking Code Unik (Publik Warga)
+// 3. Pencarian Laporan Alternatif / Jaring Pengaman Warga (Lupa Kode)
+router.get('/search', reportController.searchReports);
+
+// 4. Lacak Status Laporan via Tracking Code Unik (Publik Warga)
 router.get('/track/:code', reportController.getReportByTrackingCode);
 
 module.exports = router;

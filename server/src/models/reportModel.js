@@ -230,6 +230,91 @@ class ReportModel {
 
     return memoryReports.find((r) => r.tracking_code === trackingCode) || null;
   }
+
+  /**
+   * Cari laporan alternatif untuk jaring pengaman pelacakan warga (Lupa Kode)
+   * Berdasarkan nomor telepon ATAU kombinasi kecamatan & tanggal
+   * @param {Object} criteria { phone, district, date }
+   * @returns {Promise<Array>} Daftar laporan publik yang cocok
+   */
+  static async findReportsBySearch({ phone, district, date }) {
+    const cleanPhone = phone ? phone.replace(/\D/g, '') : null;
+
+    // 1. Coba via PostgreSQL Pool
+    if (pool) {
+      try {
+        let text = `
+          SELECT id, tracking_code, title, description, district, address_landmark,
+                 pollution_type, estimated_severity, reporter_phone, status,
+                 photo_url, thumbnail_url, created_at
+          FROM reports
+          WHERE 1=1
+        `;
+        const values = [];
+        let idx = 1;
+
+        if (cleanPhone) {
+          text += ` AND REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(reporter_phone, ''), '-', ''), ' ', ''), '+', ''), '(', '') LIKE $${idx++}`;
+          values.push(`%${cleanPhone.slice(-8)}%`);
+        } else {
+          if (district) {
+            text += ` AND LOWER(district) = LOWER($${idx++})`;
+            values.push(district);
+          }
+          if (date) {
+            text += ` AND DATE(created_at) = $${idx++}`;
+            values.push(date);
+          }
+        }
+
+        text += ' ORDER BY created_at DESC LIMIT 20;';
+        const result = await query(text, values);
+        return result.rows;
+      } catch (err) {
+        console.warn('⚠️ [PG_SEARCH_FAIL] Mengalihkan ke Supabase / mock:', err.message);
+      }
+    }
+
+    // 2. Coba via Supabase Client
+    if (process.env.SUPABASE_URL && !process.env.SUPABASE_URL.includes('your-project-id')) {
+      try {
+        let queryBuilder = supabase
+          .from('reports')
+          .select('id, tracking_code, title, description, district, address_landmark, pollution_type, estimated_severity, reporter_phone, status, photo_url, thumbnail_url, created_at');
+
+        if (cleanPhone) {
+          queryBuilder = queryBuilder.ilike('reporter_phone', `%${cleanPhone.slice(-8)}%`);
+        } else {
+          if (district) queryBuilder = queryBuilder.ilike('district', district);
+          if (date) {
+            queryBuilder = queryBuilder.gte('created_at', `${date}T00:00:00Z`).lte('created_at', `${date}T23:59:59Z`);
+          }
+        }
+
+        const { data, error } = await queryBuilder.order('created_at', { ascending: false }).limit(20);
+        if (error) throw error;
+        return data;
+      } catch (err) {
+        console.warn('⚠️ [SUPABASE_SEARCH_FAIL] Mengalihkan ke mock:', err.message);
+      }
+    }
+
+    // 3. Fallback in-memory dev
+    return memoryReports.filter((r) => {
+      if (cleanPhone) {
+        if (!r.reporter_phone) return false;
+        const repClean = r.reporter_phone.replace(/\D/g, '');
+        return repClean.includes(cleanPhone.slice(-8));
+      }
+      if (district && r.district?.toLowerCase() !== district.toLowerCase()) {
+        return false;
+      }
+      if (date && !r.created_at?.startsWith(date)) {
+        return false;
+      }
+      return true;
+    });
+  }
 }
 
 module.exports = ReportModel;

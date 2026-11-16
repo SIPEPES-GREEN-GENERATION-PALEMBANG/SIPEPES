@@ -129,8 +129,69 @@ const getReportByTrackingCode = async (req, res, next) => {
   }
 };
 
+/**
+ * Handler GET /api/v1/reports/search
+ * Mencari laporan alternatif bagi warga yang lupa kode tiket
+ * Filter: phone ATAU (district + date)
+ */
+const searchReports = async (req, res, next) => {
+  try {
+    const { phone, district, date } = req.query;
+
+    if (!phone && !district && !date) {
+      return errorResponse(
+        res,
+        'Masukkan nomor WhatsApp atau pilih kecamatan dan tanggal untuk melakukan pencarian tiket.',
+        null,
+        400
+      );
+    }
+
+    const rawReports = await ReportModel.findReportsBySearch({
+      phone: phone ? phone.trim() : null,
+      district: district ? district.trim() : null,
+      date: date ? date.trim() : null,
+    });
+
+    // Sanitasi privasi nomor kontak pelapor (FR-2 & Privacy Guard)
+    const sanitizedReports = (rawReports || []).map((r) => {
+      let maskedPhone = null;
+      if (r.reporter_phone && r.reporter_phone.length >= 7) {
+        const p = r.reporter_phone.trim();
+        maskedPhone = `${p.slice(0, 4)}****${p.slice(-3)}`;
+      }
+
+      return {
+        id: r.id,
+        tracking_code: r.tracking_code,
+        title: r.title,
+        description: r.description,
+        district: r.district,
+        address_landmark: r.address_landmark,
+        pollution_type: r.pollution_type,
+        estimated_severity: r.estimated_severity,
+        status: r.status || 'menunggu',
+        photo_url: r.photo_url,
+        thumbnail_url: r.thumbnail_url || r.photo_url,
+        reporter_phone_masked: maskedPhone,
+        created_at: r.created_at,
+      };
+    });
+
+    return successResponse(
+      res,
+      `Ditemukan ${sanitizedReports.length} laporan yang cocok`,
+      sanitizedReports,
+      { total: sanitizedReports.length }
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   createReport,
   getPublicReports,
   getReportByTrackingCode,
+  searchReports,
 };

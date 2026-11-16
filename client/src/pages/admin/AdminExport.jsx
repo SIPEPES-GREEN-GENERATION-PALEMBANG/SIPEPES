@@ -125,18 +125,31 @@ export default function AdminExport() {
 
     try {
       const headers = ['Kode Tiket', 'Judul', 'Kategori', 'Tingkat Dugaan', 'Kecamatan', 'Alamat/Patokan', 'Latitude', 'Longitude', 'Tanggal Masuk', 'Status'];
-      const rows = sortedReports.map(r => [
-        `"${r.tracking_code || ''}"`,
-        `"${(r.title || '').replace(/"/g, '""')}"`,
-        `"${r.category || ''}"`,
-        `"${r.estimated_severity || r.severity || ''}"`,
-        `"${r.district || ''}"`,
-        `"${(r.address_landmark || '').replace(/"/g, '""')}"`,
-        r.latitude || '',
-        r.longitude || '',
-        `"${r.created_at || ''}"`,
-        `"${r.status || ''}"`
-      ]);
+      const categoryMap = {
+        minyak_oli: 'Limbah Minyak / B3',
+        sampah_domestik: 'Sampah Plastik',
+        limbah_industri: 'Limbah Industri',
+        lainnya: 'Lainnya / Gulma'
+      };
+
+      const rows = sortedReports.map(r => {
+        const cat = r.category && !r.category.includes('_') ? r.category : (categoryMap[r.pollution_type] || 'Limbah');
+        const sev = r.estimated_severity === 'berat' ? 'Berat' : r.estimated_severity === 'sedang' ? 'Sedang' : 'Ringan';
+        const st = r.status === 'valid' || r.status === 'terverifikasi' ? 'Valid' : r.status === 'ditolak' ? 'Ditolak' : 'Menunggu';
+
+        return [
+          `"${r.tracking_code || ''}"`,
+          `"${(r.title || '').replace(/"/g, '""')}"`,
+          `"${cat}"`,
+          `"${sev}"`,
+          `"${r.district || ''}"`,
+          `"${(r.address_landmark || '').replace(/"/g, '""')}"`,
+          r.latitude || '',
+          r.longitude || '',
+          `"${r.created_at || ''}"`,
+          `"${st}"`
+        ];
+      });
 
       const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });

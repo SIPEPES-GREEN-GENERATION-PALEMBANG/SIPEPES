@@ -14,12 +14,14 @@ import {
   Trash2,
   ExternalLink,
   Navigation,
-  Info
+  Info,
+  Download
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { useAdmin } from '../../context/AdminContext';
 import { compressImage } from '../../lib/compressImage';
+import { saveDeviceReport } from '../../lib/deviceReports';
 import reportsService from '../../services/reports';
 import Stepper from '../../components/Stepper';
 import Button from '../../components/Button';
@@ -159,7 +161,7 @@ export default function WargaReportForm() {
   // Pilihan Kategori Limbah
   const pollutionOptions = [
     { value: 'minyak_oli', label: 'Limbah Minyak / B3', desc: 'Tumpahan oli, minyak kapal, atau bahan kimia' },
-    { value: 'sampah_domestik', label: 'Sampah Plastik / Domestik', desc: 'Timbulan plastik, botol, atau kasur di sempadan' },
+    { value: 'sampah_domestik', label: 'Sampah Plastik', desc: 'Timbulan kantong, botol, atau sampah plastik sempadan' },
     { value: 'limbah_industri', label: 'Limbah Industri', desc: 'Busa tebal atau buangan pabrik berwarna pekat' },
     { value: 'lainnya', label: 'Lainnya / Gulma', desc: 'Eceng gondok tebal atau material lain' }
   ];
@@ -187,7 +189,7 @@ export default function WargaReportForm() {
         original: (result.originalSize / (1024 * 1024)).toFixed(2),
         compressed: (result.compressedSize / (1024 * 1024)).toFixed(2)
       });
-      setToastMessage('Foto berhasil dikompresi di bawah 2 MB');
+      setToastMessage('Foto berhasil dikompresi dan siap diunggah');
     } catch (err) {
       setErrors(prev => ({ ...prev, photo: err.message || 'Gagal memproses foto.' }));
     } finally {
@@ -278,7 +280,7 @@ export default function WargaReportForm() {
     const reportPayload = {
       title,
       description: fullDescription,
-      category: pollutionOptions.find(p => p.value === pollutionType)?.label || 'Sampah Plastik / Domestik',
+      category: pollutionOptions.find(p => p.value === pollutionType)?.label || 'Sampah Plastik',
       pollution_type: pollutionType,
       estimated_severity: severity,
       latitude: coords.lat,
@@ -312,6 +314,9 @@ export default function WargaReportForm() {
       addReport(created);
     }
 
+    // Otomatis simpan ke riwayat perangkat lokal (Jaring Pengaman FR-2)
+    saveDeviceReport(created);
+
     setIsSubmitting(false);
     setCreatedTicket(created);
   };
@@ -324,12 +329,125 @@ export default function WargaReportForm() {
     }
   };
 
+  // Unduh Kartu Tiket Digital (PNG) Beresolusi Tinggi
+  const handleDownloadTicketCard = (ticketCode, report) => {
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = 900;
+      canvas.height = 540;
+
+      // Latar Gelap Elegan
+      ctx.fillStyle = '#12213F';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Garis aksen pelangi Musi di atas
+      const grad = ctx.createLinearGradient(0, 0, canvas.width, 0);
+      grad.addColorStop(0, '#1D6FF2');
+      grad.addColorStop(0.5, '#19D3BD');
+      grad.addColorStop(1, '#FFC93C');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, canvas.width, 10);
+
+      // Dekorasi lingkaran halus di sudut kanan atas
+      ctx.fillStyle = 'rgba(29, 111, 242, 0.08)';
+      ctx.beginPath();
+      ctx.arc(820, 100, 160, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Brand Title
+      ctx.fillStyle = '#19D3BD';
+      ctx.font = 'bold 18px Montserrat, sans-serif';
+      ctx.fillText('SIPEPES × GREEN GENERATION PALEMBANG', 50, 60);
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+      ctx.font = '13px Montserrat, sans-serif';
+      ctx.fillText('PROGRAM GG RIVER CARE • PENJAGA KELESTARIAN SUNGAI MUSI', 50, 85);
+
+      // Divider line
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(50, 105);
+      ctx.lineTo(850, 105);
+      ctx.stroke();
+
+      // Kotak Tiket Emas
+      ctx.fillStyle = '#192C54';
+      if (ctx.roundRect) {
+        ctx.roundRect(50, 130, 800, 160, 18);
+        ctx.fill();
+      } else {
+        ctx.fillRect(50, 130, 800, 160);
+      }
+      ctx.strokeStyle = '#FFC93C';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = '#FFC93C';
+      ctx.font = 'bold 15px Montserrat, sans-serif';
+      ctx.fillText('KODE TIKET PELACAKAN', 80, 165);
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 50px monospace';
+      ctx.fillText(ticketCode, 80, 225);
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.font = '14px Montserrat, sans-serif';
+      ctx.fillText('Status: Menunggu Verifikasi Tim Relawan GG River Care', 80, 260);
+
+      // Detail Laporan
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 20px Montserrat, sans-serif';
+      const displayTitle = report?.title || title || 'Laporan Titik Pencemaran Musi';
+      ctx.fillText(displayTitle.length > 50 ? displayTitle.slice(0, 47) + '...' : displayTitle, 50, 335);
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+      ctx.font = '15px Montserrat, sans-serif';
+      const cat = report?.category || pollutionOptions.find(p => p.value === pollutionType)?.label || 'Limbah';
+      const dis = report?.district || district || 'Palembang';
+      ctx.fillText(`Kategori: ${cat}   |   Wilayah: ${dis}`, 50, 370);
+
+      const dateStr = new Date().toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }) + ' WIB';
+      ctx.fillText(`Waktu Melapor: ${dateStr}`, 50, 400);
+
+      // Footer Bar
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.fillRect(0, 460, canvas.width, 80);
+
+      ctx.fillStyle = '#19D3BD';
+      ctx.font = 'bold 14px Montserrat, sans-serif';
+      ctx.fillText('Pantau perkembangan laporanmu kapan saja di:', 50, 505);
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 14px monospace';
+      ctx.fillText(`${window.location.origin}/lacak/${ticketCode}`, 420, 505);
+
+      // Trigger Download
+      const link = document.createElement('a');
+      link.download = `tiket-sipepes-${ticketCode}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+
+      setToastMessage('Kartu tiket digital berhasil diunduh');
+    } catch (err) {
+      console.error('Gagal membuat kartu tiket:', err);
+      setToastMessage('Gagal membuat kartu tiket gambar');
+    }
+  };
+
   // ========================================================
   // VIEW: LAPORAN TERKIRIM (W6 / W8)
   // ========================================================
   if (createdTicket || urlKode) {
     const code = createdTicket?.tracking_code || urlKode;
-    const shareText = `Halo! Saya baru saja melaporkan titik pencemaran Sungai Musi melalui SIPEPES GG River Care dengan kode tiket ${code}. Cek statusnya di sini: ${window.location.origin}/lacak/${code}`;
+    const shareText = `Halo! Saya baru saja melaporkan pencemaran Sungai Musi melalui SIPEPES GG River Care.\n\nKode Tiket: ${code}\nKategori: ${createdTicket?.category || 'Limbah'}\nWilayah: ${district || createdTicket?.district || 'Palembang'}\n\nPantau statusnya di sini: ${window.location.origin}/lacak/${code}`;
     const waUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
 
     return (
@@ -351,7 +469,7 @@ export default function WargaReportForm() {
             </h1>
 
             <p className="text-xs sm:text-sm text-ink-soft leading-relaxed max-w-md mx-auto">
-              Laporanmu telah masuk ke antrean dan akan segera diverifikasi oleh tim relawan Green Generation Palembang (Program GG River Care).
+              Laporanmu telah masuk ke antrean dan akan segera diverifikasi oleh tim relawan Green Generation Palembang.
             </p>
           </div>
 
@@ -377,6 +495,15 @@ export default function WargaReportForm() {
               >
                 {copied ? <Check className="w-4 h-4 text-toska-800" /> : <Copy className="w-4 h-4 text-ink-muted" />}
                 <span>{copied ? 'Tersalin!' : 'Salin Kode'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleDownloadTicketCard(code, createdTicket)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white text-ink text-xs font-bold border border-garis hover:bg-slate-50 shadow-xs cursor-pointer"
+              >
+                <Download className="w-4 h-4 text-musi-600" />
+                <span>Simpan Kartu Tiket (PNG)</span>
               </button>
 
               <a
@@ -427,9 +554,6 @@ export default function WargaReportForm() {
             <h1 className="text-2xl sm:text-3xl font-extrabold text-ink tracking-tight">
               Laporkan Pencemaran Sungai Musi
             </h1>
-            <p className="text-xs sm:text-sm text-ink-soft mt-1">
-              Setiap laporan warga diverifikasi mandiri oleh tim relawan GG River Care.
-            </p>
           </div>
 
           <Link to="/" className="text-xs font-bold text-musi-600 hover:text-musi-800 transition inline-flex items-center gap-1 self-center sm:self-auto">
@@ -457,9 +581,6 @@ export default function WargaReportForm() {
                   <h2 className="text-lg sm:text-xl font-bold text-ink">
                     1. Unggah Foto Bukti Pencemaran
                   </h2>
-                  <p className="text-xs text-ink-soft mt-1">
-                    Foto yang jelas membantu relawan memvalidasi insiden secara cepat.
-                  </p>
                 </div>
 
                 {/* Input Tersembunyi untuk Kamera & Galeri */}
@@ -505,7 +626,6 @@ export default function WargaReportForm() {
                     {photoSizes && (
                       <div className="p-3 bg-musi-100 rounded-2xl flex items-center justify-between text-xs text-musi-800 font-semibold">
                         <span>Ukuran terkompresi: <strong>{photoSizes.compressed} MB</strong></span>
-                        <span className="text-toska-800 font-bold">&check; Di bawah 2 MB</span>
                       </div>
                     )}
                   </div>
@@ -576,9 +696,6 @@ export default function WargaReportForm() {
                   <h2 className="text-lg sm:text-xl font-bold text-ink">
                     2. Tandai Lokasi Sempadan Sungai
                   </h2>
-                  <p className="text-xs text-ink-soft mt-1">
-                    Gunakan tombol deteksi GPS atau geser pin langsung ke titik kejadian di peta.
-                  </p>
                 </div>
 
                 {/* Tombol Deteksi Lokasi Otomatis */}
@@ -673,9 +790,6 @@ export default function WargaReportForm() {
                   <h2 className="text-lg sm:text-xl font-bold text-ink">
                     3. Detail Dugaan Pencemaran
                   </h2>
-                  <p className="text-xs text-ink-soft mt-1">
-                    Beri gambaran visual pencemaran yang kamu amati di lapangan.
-                  </p>
                 </div>
 
                 {/* Judul Laporan */}
@@ -809,9 +923,6 @@ export default function WargaReportForm() {
                   <h2 className="text-lg sm:text-xl font-bold text-ink">
                     4. Tinjau Ringkasan Laporan
                   </h2>
-                  <p className="text-xs text-ink-soft mt-1">
-                    Periksa kembali data sebelum dikirimkan ke tim relawan GG River Care.
-                  </p>
                 </div>
 
                 {/* Pratinjau Foto & Informasi Utama */}
@@ -875,7 +986,9 @@ export default function WargaReportForm() {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-ink-soft">
                     <div className="p-2.5 rounded-xl bg-slate-50">
                       <span className="text-xs uppercase font-bold text-ink-muted block">Jenis</span>
-                      <span className="font-bold text-ink capitalize">{pollutionType.replace('_', ' ')}</span>
+                      <span className="font-bold text-ink">
+                        {pollutionOptions.find(p => p.value === pollutionType)?.label || 'Sampah Plastik'}
+                      </span>
                     </div>
                     <div className="p-2.5 rounded-xl bg-slate-50">
                       <span className="text-xs uppercase font-bold text-ink-muted block">Luas</span>

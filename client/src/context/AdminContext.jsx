@@ -192,13 +192,13 @@ export function AdminProvider({ children }) {
   };
 
   const addReport = (newReportData) => {
-    const trackingCode = `SPP-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(Math.floor(1000 + Math.random() * 9000))}`;
+    const trackingCode = `MUSI-${Math.floor(1000 + Math.random() * 9000)}`;
     const newReport = {
       id: newReportData.id || `rep-${Date.now()}`,
       tracking_code: newReportData.tracking_code || trackingCode,
       title: newReportData.title || 'Laporan Baru Warga',
       description: newReportData.description || '',
-      category: newReportData.category || 'Sampah Plastik / Domestik',
+      category: newReportData.category || 'Sampah Plastik',
       pollution_type: newReportData.pollution_type || 'sampah_domestik',
       estimated_severity: newReportData.estimated_severity || 'sedang',
       latitude: newReportData.latitude || -2.9904,

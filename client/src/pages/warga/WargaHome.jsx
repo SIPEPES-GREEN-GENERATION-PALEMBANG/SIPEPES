@@ -11,7 +11,8 @@ import {
   ChevronRight,
   Camera,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  ArrowRight
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -168,12 +169,6 @@ export default function WargaHome() {
         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-center">
           {/* Kolom Kiri: Teks Ajakan Utama */}
           <div className="lg:col-span-7 space-y-4">
-            {/* Pil Pengelola Komunitas */}
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-md text-white text-xs font-semibold border border-white/20 select-none">
-              <PartnerLogo size={30} />
-              <span>Program GG River Care &bull; Green Generation Palembang</span>
-            </div>
-
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight">
               Sungai kotor? Laporkan saja.
             </h1>
@@ -502,16 +497,28 @@ export default function WargaHome() {
                               </p>
                             </div>
 
-                            {/* Tombol Buka di Google Maps */}
-                            <a
-                              href={gmapsUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center justify-center gap-1.5 w-full py-1.5 px-3 rounded-full bg-musi-100 hover:bg-musi-600 text-musi-800 hover:text-white text-xs font-bold transition mt-1"
-                            >
-                              <span>Buka di Google Maps</span>
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
+                            {/* Tombol Aksi Popup */}
+                            <div className="space-y-1.5 pt-1">
+                              {rep.tracking_code && (
+                                <Link
+                                  to={`/lacak/${rep.tracking_code}`}
+                                  className="inline-flex items-center justify-center gap-1.5 w-full py-1.5 px-3 rounded-full bg-slate-100 hover:bg-musi-600 text-ink hover:text-white text-xs font-bold transition group"
+                                >
+                                  <span>Lacak Progres Laporan</span>
+                                  <ArrowRight className="w-3 h-3 text-musi-600 group-hover:text-white" />
+                                </Link>
+                              )}
+
+                              <a
+                                href={gmapsUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center justify-center gap-1.5 w-full py-1.5 px-3 rounded-full bg-musi-100 hover:bg-musi-600 text-musi-800 hover:text-white text-xs font-bold transition"
+                              >
+                                <span>Buka di Google Maps</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            </div>
                           </div>
                         </div>
                       </Popup>
