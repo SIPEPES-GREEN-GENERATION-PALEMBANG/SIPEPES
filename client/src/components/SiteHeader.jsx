@@ -92,7 +92,8 @@ export default function SiteHeader() {
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="md:hidden w-10 h-10 rounded-2xl border border-garis bg-white flex items-center justify-center text-ink hover:bg-slate-50 transition cursor-pointer"
-            aria-label="Buka Menu"
+            aria-label={mobileMenuOpen ? 'Tutup menu navigasi' : 'Buka menu navigasi'}
+            aria-expanded={mobileMenuOpen}
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>

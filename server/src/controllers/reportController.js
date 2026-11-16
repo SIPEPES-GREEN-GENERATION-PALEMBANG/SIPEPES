@@ -20,8 +20,11 @@ const createReport = async (req, res, next) => {
       estimated_severity,
       reporter_name,
       reporter_phone,
+      reporter_contact,
       river_segment_id,
     } = req.body;
+
+    const contactPhone = (reporter_phone || reporter_contact || '').trim() || null;
 
     // 1. Kompresi & Upload Foto Bukti
     const { photoUrl, thumbnailUrl } = await processAndUploadPhoto(
@@ -37,7 +40,7 @@ const createReport = async (req, res, next) => {
     const reportData = {
       tracking_code: trackingCode,
       reporter_name: reporter_name && reporter_name.trim() !== '' ? reporter_name.trim() : 'Warga Peduli',
-      reporter_phone: reporter_phone ? reporter_phone.trim() : null,
+      reporter_phone: contactPhone,
       title: title.trim(),
       description: description.trim(),
       photo_url: photoUrl,

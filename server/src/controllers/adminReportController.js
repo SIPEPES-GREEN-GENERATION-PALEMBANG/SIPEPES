@@ -199,16 +199,20 @@ const verifyReport = async (req, res, next) => {
         }
         previousStatus = cur.rows[0].status;
 
-        // B. Update status laporan
+        // B. Update status laporan dan tingkat keparahan resmi jika diubah
+        const newSeverity = official_severity || estimated_severity || null;
         const updateText = `
           UPDATE reports
-          SET status = $1, rejection_reason = $2, updated_at = NOW()
-          WHERE id = $3
+          SET status = $1, rejection_reason = $2,
+              estimated_severity = COALESCE($3, estimated_severity),
+              updated_at = NOW()
+          WHERE id = $4
           RETURNING *;
         `;
         const updateRes = await query(updateText, [
           targetStatus,
           targetStatus === 'ditolak' ? (rejection_reason || notes) : null,
+          newSeverity,
           id,
         ]);
         updatedReport = updateRes.rows[0];
