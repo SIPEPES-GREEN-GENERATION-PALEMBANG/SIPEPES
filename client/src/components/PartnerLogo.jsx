@@ -40,7 +40,7 @@ export default function PartnerLogo({
       {container}
       <div className="text-left">
         <span className="block text-xs font-bold text-ink leading-tight">
-          Green Generation Palembang
+          SIPEPES &times; Green Generation Palembang
         </span>
         <span className="block text-xs font-semibold text-ink-muted">
           Program GG River Care

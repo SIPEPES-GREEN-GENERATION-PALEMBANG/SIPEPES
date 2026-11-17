@@ -330,8 +330,8 @@ export default function AdminVerifyPage() {
             <span className="text-xs font-bold uppercase tracking-wider text-ink-muted">
               Daftar Laporan ({filteredList.length})
             </span>
-            <span className="text-xs font-bold text-musi-600 capitalize">
-              Status: {activeTab}
+            <span className="text-xs font-bold text-musi-600">
+              Status: {activeTab === 'menunggu' ? 'Menunggu Verifikasi' : activeTab === 'valid' ? 'Valid' : 'Ditolak'}
             </span>
           </div>
 

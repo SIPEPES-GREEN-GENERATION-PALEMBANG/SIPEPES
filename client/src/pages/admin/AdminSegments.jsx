@@ -208,14 +208,9 @@ export default function AdminSegments() {
           {wasteTypes.map((wt) => (
             <Card key={wt.code} className="p-5 sm:p-6 space-y-3 bg-white">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-ink">
-                    {wt.code}
-                  </span>
-                  <h3 className="text-sm sm:text-base font-bold text-ink">
-                    {wt.label}
-                  </h3>
-                </div>
+                <h3 className="text-sm sm:text-base font-bold text-ink">
+                  {wt.label}
+                </h3>
                 <span className="text-xs font-bold text-tingkat-berat-tx">
                   {wt.priority}
                 </span>

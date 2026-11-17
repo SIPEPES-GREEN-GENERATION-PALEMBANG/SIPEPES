@@ -23,30 +23,28 @@ export default function SiteHeader() {
     <header className="sticky top-0 z-40 bg-white border-b border-garis shadow-2xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 sm:h-20 flex items-center justify-between gap-4">
         
-        {/* Brand Kiri: SIPEPES + PartnerLogo GGP */}
+        {/* Brand Kiri: Logo GG River Care + SIPEPES x Green Generation Palembang */}
         <div className="flex items-center gap-3 shrink-0">
           <Link
             to="/"
             onClick={() => setMobileMenuOpen(false)}
-            className="flex items-center gap-2.5 group select-none cursor-pointer"
+            className="flex items-center gap-2.5 sm:gap-3 group select-none cursor-pointer"
           >
-            <div className="w-10 h-10 rounded-2xl bg-musi-600 flex items-center justify-center text-white shadow-lembut group-hover:scale-105 transition-transform duration-150 ease-halus">
-              <Droplets className="w-5 h-5 fill-white/20 stroke-[2.2]" />
-            </div>
+            <PartnerLogo size={40} className="group-hover:scale-105 transition-transform duration-150 ease-halus" />
             <div>
-              <span className="text-xl font-extrabold text-ink tracking-tight block leading-none">
-                SIPEPES
-              </span>
-              <span className="text-xs font-semibold text-ink-muted leading-tight mt-0.5 block">
-                Pantau Musi
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-lg sm:text-xl font-extrabold text-ink tracking-tight block leading-none">
+                  SIPEPES
+                </span>
+                <span className="text-xs sm:text-sm font-bold text-musi-600 block leading-none">
+                  &times; Green Generation Palembang
+                </span>
+              </div>
+              <span className="text-xs font-semibold text-ink-muted leading-tight mt-1 block">
+                Program GG River Care &bull; Sungai Musi
               </span>
             </div>
           </Link>
-
-          {/* Garis pemisah tipis & Logo Mitra GGP (>= 768px) */}
-          <div className="hidden md:flex items-center gap-3 pl-3 ml-2 border-l border-garis">
-            <PartnerLogo size={40} withLabel={true} />
-          </div>
         </div>
 
         {/* Navigasi Desktop (>= 768px) */}
@@ -69,16 +67,8 @@ export default function SiteHeader() {
           ))}
         </nav>
 
-        {/* Tombol Kanan: CTA Lapor & Masuk Admin */}
+        {/* Tombol Kanan: Masuk Admin & Menu Mobile */}
         <div className="flex items-center gap-2.5 sm:gap-3">
-          {/* Tombol Ajakan Utama Warga */}
-          <Link to="/lapor" className="hidden sm:inline-flex">
-            <Button variant="ajakan" size="sm">
-              <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>Laporkan Pencemaran</span>
-            </Button>
-          </Link>
-
           {/* Tombol Masuk Admin */}
           <Link to="/admin/login">
             <Button variant="garis" size="sm" className="hidden lg:inline-flex">
@@ -92,8 +82,7 @@ export default function SiteHeader() {
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="md:hidden w-10 h-10 rounded-2xl border border-garis bg-white flex items-center justify-center text-ink hover:bg-slate-50 transition cursor-pointer"
-            aria-label={mobileMenuOpen ? 'Tutup menu navigasi' : 'Buka menu navigasi'}
-            aria-expanded={mobileMenuOpen}
+            aria-label="Buka Menu"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
@@ -104,8 +93,9 @@ export default function SiteHeader() {
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-garis bg-white px-4 py-4 space-y-3 shadow-lembut animate-fade-in">
           {/* Partner Info on Mobile */}
-          <div className="pb-3 border-b border-garis">
-            <PartnerLogo size={36} withLabel={true} />
+          <div className="pb-3 border-b border-garis flex items-center justify-between">
+            <span className="text-xs font-bold text-ink">Inisiatif Mandiri Komunitas</span>
+            <span className="px-2.5 py-0.5 rounded-full bg-toska-100 text-toska-800 text-xs font-bold">GG River Care</span>
           </div>
 
           <div className="space-y-1">

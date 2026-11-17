@@ -37,14 +37,22 @@ export default function Badge({
     ringan: 'Tingkat Ringan',
     menunggu: 'Menunggu Verifikasi',
     valid: 'Valid',
-    ditolak: 'Ditolak'
+    terverifikasi: 'Valid',
+    ditolak: 'Ditolak',
+    minyak_oli: 'Limbah Minyak / B3',
+    sampah_domestik: 'Sampah Plastik',
+    limbah_industri: 'Limbah Industri',
+    lainnya: 'Lainnya / Gulma'
   };
 
   const activeStyle = type === 'tingkat' 
     ? (tingkatStyles[value] || tingkatStyles.sedang)
     : (statusStyles[value] || statusStyles.menunggu);
 
-  const displayLabel = children || defaultLabels[value] || value;
+  const rawLabel = children || defaultLabels[value] || (typeof value === 'string' ? defaultLabels[value.toLowerCase()] : null) || value;
+  const displayLabel = typeof rawLabel === 'string' && rawLabel.includes('_')
+    ? (defaultLabels[rawLabel] || rawLabel.replace(/_/g, ' '))
+    : rawLabel;
 
   return (
     <span

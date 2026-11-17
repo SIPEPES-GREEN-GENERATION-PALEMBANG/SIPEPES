@@ -318,6 +318,13 @@ class ReportModel {
       return true;
     });
   }
+
+  /**
+   * Alias kompatibilitas backward untuk pencarian laporan jaring pengaman
+   */
+  static async findReportsBySearch(criteria) {
+    return this.searchReports(criteria);
+  }
 }
 
 module.exports = ReportModel;

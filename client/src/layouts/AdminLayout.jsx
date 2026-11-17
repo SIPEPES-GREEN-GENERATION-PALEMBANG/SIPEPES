@@ -120,10 +120,10 @@ export default function AdminLayout() {
                 <PartnerLogo size={36} />
                 <div>
                   <span className="font-bold text-ink text-sm block leading-tight">
-                    GG River Care
+                    SIPEPES &times; GGP
                   </span>
                   <span className="text-xs text-ink-muted font-medium block">
-                    Portal Admin
+                    Portal Relawan
                   </span>
                 </div>
               </Link>

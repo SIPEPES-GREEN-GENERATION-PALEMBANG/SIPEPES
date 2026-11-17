@@ -186,7 +186,8 @@ const searchReports = async (req, res, next) => {
     return successResponse(
       res,
       `Ditemukan ${sanitizedReports.length} laporan yang cocok.`,
-      sanitizedReports
+      sanitizedReports,
+      { total: sanitizedReports.length }
     );
   } catch (err) {
     next(err);
