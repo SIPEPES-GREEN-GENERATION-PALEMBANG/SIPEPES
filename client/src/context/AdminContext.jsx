@@ -192,7 +192,7 @@ export function AdminProvider({ children }) {
   };
 
   const addReport = (newReportData) => {
-    const trackingCode = `SPP-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(Math.floor(1000 + Math.random() * 9000))}`;
+    const trackingCode = `MUSI-${Math.floor(1000 + Math.random() * 9000)}`;
     const newReport = {
       id: newReportData.id || `rep-${Date.now()}`,
       tracking_code: newReportData.tracking_code || trackingCode,

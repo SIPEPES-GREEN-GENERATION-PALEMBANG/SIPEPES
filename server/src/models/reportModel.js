@@ -230,6 +230,94 @@ class ReportModel {
 
     return memoryReports.find((r) => r.tracking_code === trackingCode) || null;
   }
+
+  /**
+   * Cari laporan alternatif jika warga lupa kode tiket (berdasarkan no. HP atau kecamatan & tanggal)
+   */
+  static async searchReports({ phone, district, date }) {
+    // 1. Coba via PostgreSQL Pool
+    if (pool) {
+      try {
+        let text = `
+          SELECT r.id, r.tracking_code, r.title, r.description, r.latitude, r.longitude,
+                 r.district, r.address_landmark, r.pollution_type, r.estimated_severity,
+                 r.status, r.photo_url, r.thumbnail_url, r.created_at,
+                 r.reporter_phone, r.reporter_name
+          FROM reports r
+          WHERE 1=1
+        `;
+        const values = [];
+        let idx = 1;
+
+        if (phone && phone.trim()) {
+          const cleanDigits = phone.replace(/\D/g, '');
+          const searchPattern = cleanDigits.length >= 8 ? cleanDigits.slice(-8) : cleanDigits;
+          text += ` AND regexp_replace(COALESCE(r.reporter_phone, ''), '\\D', '', 'g') LIKE $${idx++}`;
+          values.push(`%${searchPattern}%`);
+        }
+
+        if (district && district.trim() && district !== 'all' && district !== 'Semua Kecamatan') {
+          text += ` AND LOWER(r.district) = LOWER($${idx++})`;
+          values.push(district.trim());
+        }
+
+        if (date && date.trim()) {
+          text += ` AND DATE(r.created_at) = $${idx++}`;
+          values.push(date.trim());
+        }
+
+        text += ' ORDER BY r.created_at DESC LIMIT 20;';
+
+        const result = await query(text, values);
+        return result.rows;
+      } catch (err) {
+        console.warn('⚠️ [PG_SEARCH_REPORTS_FAIL] Mengalihkan ke Supabase / mock:', err.message);
+      }
+    }
+
+    // 2. Coba via Supabase Client
+    if (process.env.SUPABASE_URL && !process.env.SUPABASE_URL.includes('your-project-id')) {
+      try {
+        let q = supabase
+          .from('reports')
+          .select('id, tracking_code, title, description, latitude, longitude, district, address_landmark, pollution_type, estimated_severity, status, photo_url, thumbnail_url, created_at, reporter_phone, reporter_name');
+
+        if (phone && phone.trim()) {
+          const cleanDigits = phone.replace(/\D/g, '');
+          q = q.ilike('reporter_phone', `%${cleanDigits.slice(-8)}%`);
+        }
+        if (district && district.trim() && district !== 'all' && district !== 'Semua Kecamatan') {
+          q = q.ilike('district', district.trim());
+        }
+        if (date && date.trim()) {
+          q = q.gte('created_at', `${date.trim()}T00:00:00Z`).lte('created_at', `${date.trim()}T23:59:59Z`);
+        }
+
+        const { data, error } = await q.order('created_at', { ascending: false }).limit(20);
+        if (error) throw error;
+        return data || [];
+      } catch (err) {
+        console.warn('⚠️ [SUPABASE_SEARCH_FAIL] Mengalihkan ke mock:', err.message);
+      }
+    }
+
+    // 3. Fallback in-memory dev
+    return memoryReports.filter((r) => {
+      if (phone && phone.trim()) {
+        const cleanDigits = phone.replace(/\D/g, '');
+        const rDigits = (r.reporter_phone || '').replace(/\D/g, '');
+        if (!rDigits.includes(cleanDigits.slice(-8))) return false;
+      }
+      if (district && district.trim() && district !== 'all' && district !== 'Semua Kecamatan') {
+        if ((r.district || '').toLowerCase() !== district.trim().toLowerCase()) return false;
+      }
+      if (date && date.trim()) {
+        const rDate = (r.created_at || '').slice(0, 10);
+        if (rDate !== date.trim()) return false;
+      }
+      return true;
+    });
+  }
 }
 
 module.exports = ReportModel;

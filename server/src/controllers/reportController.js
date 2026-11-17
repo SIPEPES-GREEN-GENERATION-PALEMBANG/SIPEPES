@@ -1,5 +1,5 @@
 const ReportModel = require('../models/reportModel');
-const { generateTrackingCode } = require('../utils/trackingCode');
+const { generateUniqueTrackingCode, generateTrackingCode } = require('../utils/trackingCode');
 const { processAndUploadPhoto } = require('../utils/uploader');
 const { successResponse, errorResponse } = require('../utils/response');
 
@@ -33,8 +33,8 @@ const createReport = async (req, res, next) => {
       'reports'
     );
 
-    // 2. Buat Tracking Code Unik
-    const trackingCode = generateTrackingCode();
+    // 2. Buat Tracking Code Unik yang Ramah Warga (MUSI-XXXX)
+    const trackingCode = await generateUniqueTrackingCode();
 
     // 3. Simpan ke Database
     const reportData = {
@@ -116,7 +116,7 @@ const getReportByTrackingCode = async (req, res, next) => {
     if (!report) {
       return errorResponse(
         res,
-        `Laporan dengan kode tiket "${code}" tidak ditemukan. Pastikan format penulisan benar (misal: SPP-202611-0001).`,
+        `Laporan dengan kode tiket "${code}" tidak ditemukan. Pastikan format penulisan benar (misal: MUSI-4821 atau SPP-202611-0001).`,
         null,
         404
       );
@@ -132,8 +132,70 @@ const getReportByTrackingCode = async (req, res, next) => {
   }
 };
 
+/**
+ * Handler GET /api/v1/reports/search
+ * Pencarian alternatif bagi warga yang lupa kode tiket
+ * Filter: phone (nomor HP/WA) ATAU district + date
+ */
+const searchReports = async (req, res, next) => {
+  try {
+    const { phone, district, date } = req.query;
+
+    if (!phone && !district && !date) {
+      return errorResponse(
+        res,
+        'Mohon masukkan nomor WhatsApp atau pilih kecamatan dan tanggal untuk melakukan pencarian.',
+        null,
+        400
+      );
+    }
+
+    const reports = await ReportModel.searchReports({ phone, district, date });
+
+    // Sanitasi privasi: samarkan nomor telepon pelapor (contoh: 0812****882)
+    const sanitizedReports = reports.map((r) => {
+      let maskedPhone = null;
+      if (r.reporter_phone) {
+        const clean = r.reporter_phone.trim();
+        if (clean.length > 6) {
+          maskedPhone = `${clean.slice(0, 4)}****${clean.slice(-3)}`;
+        } else {
+          maskedPhone = '******';
+        }
+      }
+
+      return {
+        id: r.id,
+        tracking_code: r.tracking_code,
+        title: r.title,
+        description: r.description,
+        category: r.pollution_type,
+        pollution_type: r.pollution_type,
+        estimated_severity: r.estimated_severity,
+        status: r.status,
+        district: r.district,
+        address_landmark: r.address_landmark,
+        photo_url: r.photo_url,
+        thumbnail_url: r.thumbnail_url,
+        created_at: r.created_at,
+        reporter_name: r.reporter_name || 'Warga Peduli',
+        reporter_phone_masked: maskedPhone,
+      };
+    });
+
+    return successResponse(
+      res,
+      `Ditemukan ${sanitizedReports.length} laporan yang cocok.`,
+      sanitizedReports
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   createReport,
   getPublicReports,
   getReportByTrackingCode,
+  searchReports,
 };

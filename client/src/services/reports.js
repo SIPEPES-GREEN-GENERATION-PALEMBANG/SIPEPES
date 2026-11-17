@@ -73,6 +73,14 @@ export const reportsService = {
   },
 
   /**
+   * Pencarian Alternatif untuk Warga yang Lupa Kode Tiket
+   * @param {Object} query - { phone, district, date }
+   */
+  async searchReports(query = {}) {
+    return await apiClient.get('/reports/search', { params: query });
+  },
+
+  /**
    * Ambil Daftar Laporan Admin (Filter status, search, pagination)
    * @param {Object} params - { status, severity, district, search, page, limit }
    */

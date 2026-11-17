@@ -22,7 +22,7 @@ export const mockAdapter = {
   async createReport(data, photoFile) {
     await new Promise(r => setTimeout(r, 600));
     const reports = getStoredReports();
-    const trackingCode = `SPP-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(Math.floor(1000 + Math.random() * 9000))}`;
+    const trackingCode = `MUSI-${Math.floor(1000 + Math.random() * 9000)}`;
 
     const newReport = {
       id: `rep-${Date.now()}`,
@@ -78,6 +78,34 @@ export const mockAdapter = {
     }
 
     return { success: true, data: found };
+  },
+
+  async searchReports({ phone, district, date }) {
+    await new Promise(r => setTimeout(r, 400));
+    const reports = getStoredReports();
+    let filtered = [...reports];
+
+    if (phone && phone.trim()) {
+      const cleanDigits = phone.replace(/\D/g, '');
+      filtered = filtered.filter(r => {
+        const rDigits = (r.reporter_contact || r.reporter_phone || '').replace(/\D/g, '');
+        return rDigits.includes(cleanDigits.slice(-8));
+      });
+    }
+
+    if (district && district.trim() && district !== 'all' && district !== 'Semua Kecamatan') {
+      filtered = filtered.filter(r => (r.district || '').toLowerCase() === district.trim().toLowerCase());
+    }
+
+    if (date && date.trim()) {
+      filtered = filtered.filter(r => (r.created_at || '').slice(0, 10) === date.trim());
+    }
+
+    return {
+      success: true,
+      message: `Ditemukan ${filtered.length} laporan yang cocok`,
+      data: filtered
+    };
   },
 
   async getAdminReports(params = {}) {
